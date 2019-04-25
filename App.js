@@ -1,13 +1,16 @@
 import React from 'react';
+import { Provider as PaperProvider } from 'react-native-paper';
 import { StyleSheet, Text, View } from 'react-native';
 import Todo from './components/Todo';
 
 export default class App extends React.Component {
   render() {
     return (
-      <View style={styles.container}>
-        <Todo />
-      </View>
+      <PaperProvider>
+        <View style={styles.container}>
+          <Todo />
+        </View>
+      </PaperProvider>
     );
   }
 }

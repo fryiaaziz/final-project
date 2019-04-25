@@ -1,12 +1,6 @@
 import React, { Component } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  Button,
-  StyleSheet
-} from "react-native";
+import { View, ScrollView, StyleSheet } from "react-native";
+import { Button, Text, Divider, TextInput, Card, Paragraph } from "react-native-paper";
 
 let id = 0;
 const generateId = () => ++id;
@@ -93,13 +87,19 @@ export default class Todo extends Component {
       lastStepMap.set(x.index, x.value);
     });
 
-    const todos = this.state.todos.concat(Array.from({length: lastStep.length}));
+    const todos = this.state.todos.concat(
+      Array.from({ length: lastStep.length })
+    );
 
-    const update = todos.reverse().flatMap((t, i, a) =>
-      lastStepMap.has(a.length - i - 1) ? [t, lastStepMap.get(a.length - i - 1)] : t
-    )
-    .reverse()
-    .filter(Boolean);
+    const update = todos
+      .reverse()
+      .flatMap((t, i, a) =>
+        lastStepMap.has(a.length - i - 1)
+          ? [t, lastStepMap.get(a.length - i - 1)]
+          : t
+      )
+      .reverse()
+      .filter(Boolean);
 
     this.setState({
       todos: update
@@ -109,46 +109,54 @@ export default class Todo extends Component {
   render() {
     return (
       <View>
-        <Text>Insert a todo:</Text>
         <View>
           <TextInput
-            style={{ borderWidth: 1, padding: 2, borderRadius: 3 }}
+            mode="outlined"
+            label="Insert a todo"
             onSubmitEditing={() => this.addTodo()}
             onChangeText={t => this.setState({ todoText: t })}
             value={this.state.todoText}
           />
-          <Button onPress={() => this.addTodo()} title="Add Todo" />
+          <Button mode="contained" onPress={() => this.addTodo()}>Add Todo</Button>
+          <Divider />
           <Button
             disabled={this.state.toBeDeleted.size === 0}
             color={"red"}
+            mode="outlined"
             onPress={() => this.deleteSelected2()}
-            title={`Delete Selected (${this.state.toBeDeleted.size})`}
-          />
+          >
+            {`Delete Selected (${this.state.toBeDeleted.size})`}
+          </Button>
 
           <Button
             disabled={this.history.length === 0}
             color={"green"}
+            mode="outlined"
             onPress={() => this.undo()}
-            title={`Undo`}
-          />
+          >
+            Undo
+          </Button>
         </View>
+        <Divider />
         <ScrollView>
           {this.state.todos.map((t, i) => {
             return (
-              <View key={t.id} style={styles.todo}>
-                <Text
-                  style={t.toDelete ? styles.redText : null}
-                  onPress={() => this.selectToDelete2(t.id)}
-                >
-                  {i + 1} {t.text}
-                </Text>
-                {t.toDelete && false && (
-                  <Button
-                    onPress={() => this.deleteTodo(t.id)}
-                    title="Delete"
-                  />
-                )}
-              </View>
+              <Card key={t.id} elevation={5} onPress={() => this.selectToDelete2(t.id)} style={{backgroundColor: this.state.toBeDeleted.has(t.id) ? 'red' : 'lightgray'}}>
+                <Card.Content>
+                  <View style={styles.todo}>
+                    <Paragraph
+                      style={t.toDelete ? styles.redText : null}
+                    >
+                      {i + 1} {t.text}
+                    </Paragraph>
+                    {t.toDelete && false && (
+                      <Button onPress={() => this.deleteTodo(t.id)}>
+                        Delete
+                      </Button>
+                    )}
+                  </View>
+                </Card.Content>
+              </Card>
             );
           })}
         </ScrollView>
