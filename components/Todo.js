@@ -14,8 +14,11 @@ const generateId = () => ++id;
 export default class Todo extends Component {
   state = {
     todoText: "",
-    todos: [{ text: "Todo 1", id: generateId(), toDelete: false }]
+    todos: [{ text: "Todo 1", id: generateId(), toDelete: false }],
+    toBeDeleted: new Set()
   };
+
+  history = [];
 
   addTodo = () => {
     this.setState({
@@ -42,6 +45,15 @@ export default class Todo extends Component {
     });
   };
 
+  selectToDelete2 = todoId => {
+    this.setState(state => ({
+      toBeDeleted: state.toBeDeleted.has(todoId)
+        ? (state.toBeDeleted.delete(todoId) && state.toBeDeleted) ||
+          state.toBeDeleted
+        : state.toBeDeleted.add(todoId)
+    }));
+  };
+
   deleteTodo = todoId => {
     this.setState({
       todos: this.state.todos.filter(x => x.id !== todoId)
@@ -58,6 +70,42 @@ export default class Todo extends Component {
     });
   };
 
+  deleteSelected2 = () => {
+    this.history.push(
+      this.state.todos
+        .map((x, i) => ({ value: x, index: i }))
+        .filter(x => this.state.toBeDeleted.has(x.value.id))
+    );
+
+    this.setState({
+      todos: this.state.todos.filter(x => !this.state.toBeDeleted.has(x.id)),
+      toBeDeleted: new Set()
+    });
+  };
+
+  undo = () => {
+    require("array.prototype.flatmap").shim();
+
+    const lastStep = this.history.pop() || [];
+
+    const lastStepMap = new Map();
+    lastStep.forEach(x => {
+      lastStepMap.set(x.index, x.value);
+    });
+
+    const todos = this.state.todos.concat(Array.from({length: lastStep.length}));
+
+    const update = todos.reverse().flatMap((t, i, a) =>
+      lastStepMap.has(a.length - i - 1) ? [t, lastStepMap.get(a.length - i - 1)] : t
+    )
+    .reverse()
+    .filter(Boolean);
+
+    this.setState({
+      todos: update
+    });
+  };
+
   render() {
     return (
       <View>
@@ -71,10 +119,17 @@ export default class Todo extends Component {
           />
           <Button onPress={() => this.addTodo()} title="Add Todo" />
           <Button
-            disabled={this.deleteSelectedCount() === 0}
+            disabled={this.state.toBeDeleted.size === 0}
             color={"red"}
-            onPress={() => this.deleteSelected()}
-            title={`Delete Selected (${this.deleteSelectedCount()})`}
+            onPress={() => this.deleteSelected2()}
+            title={`Delete Selected (${this.state.toBeDeleted.size})`}
+          />
+
+          <Button
+            disabled={this.history.length === 0}
+            color={"green"}
+            onPress={() => this.undo()}
+            title={`Undo`}
           />
         </View>
         <ScrollView>
@@ -83,7 +138,7 @@ export default class Todo extends Component {
               <View key={t.id} style={styles.todo}>
                 <Text
                   style={t.toDelete ? styles.redText : null}
-                  onPress={() => this.selectToDelete(t.id)}
+                  onPress={() => this.selectToDelete2(t.id)}
                 >
                   {i + 1} {t.text}
                 </Text>
