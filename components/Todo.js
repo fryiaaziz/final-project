@@ -1,29 +1,76 @@
 import React, { Component } from "react";
-import { View, ScrollView, StyleSheet } from "react-native";
-import { Button, Text, Divider, TextInput, Card, Paragraph } from "react-native-paper";
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  AsyncStorage,
+  TouchableOpacity
+} from "react-native";
+import {
+  Button,
+  Text,
+  Divider,
+  TextInput,
+  Card,
+  Paragraph,
+  Headline
+} from "react-native-paper";
+import {
+  createStackNavigator,
+  createAppContainer,
+  createDrawerNavigator
+} from "react-navigation";
 
 let id = 0;
 const generateId = () => ++id;
 
-export default class Todo extends Component {
+const evalOrNull = func => {
+  try {
+    return func();
+  } catch (e) {
+    return null;
+  }
+};
+
+export class Todo extends Component {
   state = {
     todoText: "",
-    todos: [{ text: "Todo 1", id: generateId(), toDelete: false }],
+    todos: [],
     toBeDeleted: new Set()
+  };
+
+  static navigationOptions = {
+    title: "Todo App"
   };
 
   history = [];
 
-  addTodo = () => {
+  async componentDidMount() {
+    const keys = await AsyncStorage.getAllKeys().then(keys => {
+      return keys.filter(k => k.startsWith("todos:"));
+    });
+
+    const todos = await AsyncStorage.multiGet(keys).then(todos => {
+      return todos.map(([_, t]) => JSON.parse(t));
+    });
+    id = evalOrNull(() => todos.slice(-1)[0].id + 1) || 0;
+
     this.setState({
-      todos: [
-        ...this.state.todos,
-        {
-          text: this.state.todoText,
-          id: generateId(),
-          toDelete: false
-        }
-      ],
+      todos
+    });
+  }
+
+  addTodo = () => {
+    const newTodo = {
+      text: this.state.todoText,
+      id: generateId(),
+      toDelete: false
+    };
+
+    AsyncStorage.setItem(`todos:${newTodo.id}`, JSON.stringify(newTodo));
+
+    this.setState({
+      todos: [...this.state.todos, newTodo],
       todoText: ""
     });
   };
@@ -64,7 +111,11 @@ export default class Todo extends Component {
     });
   };
 
-  deleteSelected2 = () => {
+  deleteSelected2 = async () => {
+    await AsyncStorage.multiRemove(
+      [...this.state.toBeDeleted].map(id => `todos:${id}`)
+    );
+
     this.history.push(
       this.state.todos
         .map((x, i) => ({ value: x, index: i }))
@@ -108,7 +159,12 @@ export default class Todo extends Component {
 
   render() {
     return (
-      <View>
+      <View
+        style={{
+          marginLeft: 20,
+          marginRight: 20
+        }}
+      >
         <View>
           <TextInput
             mode="outlined"
@@ -117,7 +173,9 @@ export default class Todo extends Component {
             onChangeText={t => this.setState({ todoText: t })}
             value={this.state.todoText}
           />
-          <Button mode="contained" onPress={() => this.addTodo()}>Add Todo</Button>
+          <Button mode="contained" onPress={() => this.addTodo()}>
+            Add Todo
+          </Button>
           <Divider />
           <Button
             disabled={this.state.toBeDeleted.size === 0}
@@ -141,20 +199,33 @@ export default class Todo extends Component {
         <ScrollView>
           {this.state.todos.map((t, i) => {
             return (
-              <Card key={t.id} elevation={5} onPress={() => this.selectToDelete2(t.id)} style={{backgroundColor: this.state.toBeDeleted.has(t.id) ? 'red' : 'lightgray'}}>
+              <Card
+                key={t.id}
+                elevation={5}
+                onPress={() => this.selectToDelete2(t.id)}
+                style={{
+                  backgroundColor: this.state.toBeDeleted.has(t.id)
+                    ? "red"
+                    : "lightgray"
+                }}
+              >
                 <Card.Content>
-                  <View style={styles.todo}>
-                    <Paragraph
-                      style={t.toDelete ? styles.redText : null}
-                    >
-                      {i + 1} {t.text}
-                    </Paragraph>
-                    {t.toDelete && false && (
-                      <Button onPress={() => this.deleteTodo(t.id)}>
-                        Delete
-                      </Button>
-                    )}
-                  </View>
+                  <TouchableOpacity
+                    onPress={() =>
+                      this.props.navigation.navigate("second", { todo: t })
+                    }
+                  >
+                    <View style={styles.todo}>
+                      <Paragraph style={t.toDelete ? styles.redText : null}>
+                        {i + 1} {t.text}
+                      </Paragraph>
+                      {t.toDelete && false && (
+                        <Button onPress={() => this.deleteTodo(t.id)}>
+                          Delete
+                        </Button>
+                      )}
+                    </View>
+                  </TouchableOpacity>
                 </Card.Content>
               </Card>
             );
@@ -176,3 +247,35 @@ const styles = StyleSheet.create({
     color: "red"
   }
 });
+
+const Second = ({ navigation }) => (
+  <View>
+    <Card>
+      <Card.Title title="Hello React Navigation" />
+      <Card.Content>
+        <Headline>This is headline</Headline>
+        <Text>{navigation.state.params.todo.text}</Text>
+      </Card.Content>
+    </Card>
+  </View>
+);
+
+Second.navigationOptions = {
+  title: "Single Todo"
+};
+
+const Navigator = createStackNavigator(
+  {
+    home: {
+      screen: Todo
+    },
+    second: {
+      screen: Second
+    }
+  },
+  {
+    initialRouteKey: "home"
+  }
+);
+
+export default createAppContainer(Navigator);
