@@ -20,6 +20,9 @@ import {
   createAppContainer,
   createDrawerNavigator
 } from "react-navigation";
+import { firebase } from "../firebase";
+
+const todosCollection = firebase.firestore().collection("todos");
 
 let id = 0;
 const generateId = () => ++id;
@@ -46,31 +49,42 @@ export class Todo extends Component {
   history = [];
 
   async componentDidMount() {
-    const keys = await AsyncStorage.getAllKeys().then(keys => {
-      return keys.filter(k => k.startsWith("todos:"));
-    });
+    // const keys = await AsyncStorage.getAllKeys().then(keys => {
+    //   return keys.filter(k => k.startsWith("todos:"));
+    // });
 
-    const todos = await AsyncStorage.multiGet(keys).then(todos => {
-      return todos.map(([_, t]) => JSON.parse(t));
-    });
-    id = evalOrNull(() => todos.slice(-1)[0].id + 1) || 0;
+    // const todos = await AsyncStorage.multiGet(keys).then(todos => {
+    //   return todos.map(([_, t]) => JSON.parse(t));
+    // });
+    // id = evalOrNull(() => todos.slice(-1)[0].id + 1) || 0;
 
-    this.setState({
-      todos
+    todosCollection.onSnapshot(snap => {
+      const todos = snap.docs
+        .map(x => ({ id: x.id, ...x.data() }))
+        .sort(
+          (a, b) =>
+            (evalOrNull(() => a.time) || 0) -
+            (evalOrNull(() => b.time) || 0)
+        );
+
+      this.setState({
+        todos
+      });
     });
   }
 
   addTodo = () => {
     const newTodo = {
       text: this.state.todoText,
-      id: generateId(),
-      toDelete: false
+      time: (new Date()).getTime()
     };
 
-    AsyncStorage.setItem(`todos:${newTodo.id}`, JSON.stringify(newTodo));
+    todosCollection.add(newTodo);
+
+    // AsyncStorage.setItem(`todos:${newTodo.id}`, JSON.stringify(newTodo));
 
     this.setState({
-      todos: [...this.state.todos, newTodo],
+      // todos: [...this.state.todos, newTodo],
       todoText: ""
     });
   };
@@ -112,9 +126,9 @@ export class Todo extends Component {
   };
 
   deleteSelected2 = async () => {
-    await AsyncStorage.multiRemove(
-      [...this.state.toBeDeleted].map(id => `todos:${id}`)
-    );
+    // await AsyncStorage.multiRemove(
+    //   [...this.state.toBeDeleted].map(id => `todos:${id}`)
+    // );
 
     this.history.push(
       this.state.todos
@@ -122,8 +136,11 @@ export class Todo extends Component {
         .filter(x => this.state.toBeDeleted.has(x.value.id))
     );
 
+    [...this.state.toBeDeleted].forEach(id => {
+      todosCollection.doc(id).delete();
+    })
     this.setState({
-      todos: this.state.todos.filter(x => !this.state.toBeDeleted.has(x.id)),
+      // todos: this.state.todos.filter(x => !this.state.toBeDeleted.has(x.id)),
       toBeDeleted: new Set()
     });
   };
