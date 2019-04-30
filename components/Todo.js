@@ -21,6 +21,7 @@ import {
   createDrawerNavigator
 } from "react-navigation";
 import { firebase } from "../firebase";
+import { TodosRepository } from "../repositories/TodosRepository";
 
 const todosCollection = firebase.firestore().collection("todos");
 
@@ -42,6 +43,8 @@ export class Todo extends Component {
     toBeDeleted: new Set()
   };
 
+  todosRepo = new TodosRepository();
+
   static navigationOptions = {
     title: "Todo App"
   };
@@ -49,42 +52,36 @@ export class Todo extends Component {
   history = [];
 
   async componentDidMount() {
-    // const keys = await AsyncStorage.getAllKeys().then(keys => {
-    //   return keys.filter(k => k.startsWith("todos:"));
-    // });
+  
+    // todosCollection.onSnapshot(snap => {
+    //   const todos = snap.docs
+    //     .map(x => ({ id: x.id, ...x.data() }))
+    //     .sort(
+    //       (a, b) =>
+    //         (evalOrNull(() => a.time) || 0) - (evalOrNull(() => b.time) || 0)
+    //     );
 
-    // const todos = await AsyncStorage.multiGet(keys).then(todos => {
-    //   return todos.map(([_, t]) => JSON.parse(t));
-    // });
-    // id = evalOrNull(() => todos.slice(-1)[0].id + 1) || 0;
+    const todos = await this.todosRepo.getAll();
 
-    todosCollection.onSnapshot(snap => {
-      const todos = snap.docs
-        .map(x => ({ id: x.id, ...x.data() }))
-        .sort(
-          (a, b) =>
-            (evalOrNull(() => a.time) || 0) -
-            (evalOrNull(() => b.time) || 0)
-        );
-
-      this.setState({
-        todos
-      });
+    console.log(todos);
+    this.setState({
+      todos
     });
+    // });
   }
 
-  addTodo = () => {
+  addTodo = async () => {
     const newTodo = {
       text: this.state.todoText,
-      time: (new Date()).getTime()
+      time: new Date().getTime()
     };
 
-    todosCollection.add(newTodo);
+    // todosCollection.add(newTodo);
 
-    // AsyncStorage.setItem(`todos:${newTodo.id}`, JSON.stringify(newTodo));
+    await this.todosRepo.save(newTodo);
 
     this.setState({
-      // todos: [...this.state.todos, newTodo],
+      todos: [...this.state.todos, newTodo],
       todoText: ""
     });
   };
@@ -138,7 +135,7 @@ export class Todo extends Component {
 
     [...this.state.toBeDeleted].forEach(id => {
       todosCollection.doc(id).delete();
-    })
+    });
     this.setState({
       // todos: this.state.todos.filter(x => !this.state.toBeDeleted.has(x.id)),
       toBeDeleted: new Set()
@@ -190,7 +187,11 @@ export class Todo extends Component {
             onChangeText={t => this.setState({ todoText: t })}
             value={this.state.todoText}
           />
-          <Button mode="contained" onPress={() => this.addTodo()}>
+          <Button
+            icon="add-circle"
+            mode="contained"
+            onPress={() => this.addTodo()}
+          >
             Add Todo
           </Button>
           <Divider />
@@ -213,7 +214,7 @@ export class Todo extends Component {
           </Button>
         </View>
         <Divider />
-        <ScrollView>
+        <ScrollView style={{ flexWrap: "wrap" }}>
           {this.state.todos.map((t, i) => {
             return (
               <Card
@@ -265,17 +266,53 @@ const styles = StyleSheet.create({
   }
 });
 
-const Second = ({ navigation }) => (
-  <View>
-    <Card>
-      <Card.Title title="Hello React Navigation" />
-      <Card.Content>
-        <Headline>This is headline</Headline>
-        <Text>{navigation.state.params.todo.text}</Text>
-      </Card.Content>
-    </Card>
-  </View>
-);
+class Second extends Component {
+  state = {
+    isEditing: false,
+    editedText: ""
+  };
+
+  saveTimeoutHandle = null;
+
+  repo = new TodosRepository();
+
+  updateAndSave = editedText => {
+    this.setState({ editedText });
+
+    const { todo } = this.props.navigation.state.params;
+
+    clearTimeout(this.saveTimeoutHandle);
+    this.saveTimeoutHandle = setTimeout(() => {
+      this.repo.save({...todo, text: editedText})
+    }, 1000);
+  };
+
+  render() {
+    const { todo } = this.props.navigation.state.params;
+
+    return (
+      <View>
+        <Card>
+          <Card.Title title="Hello React Navigation" />
+          <Card.Content>
+            <Headline>This is headline</Headline>
+            {this.state.isEditing ? (
+              <TextInput
+                onBlur={() => this.setState({isEditing: false})}
+                defaultValue={todo.text}
+                onChangeText={this.updateAndSave}
+              />
+            ) : (
+              <Text onPress={() => this.setState({ isEditing: true })}>
+                {todo.text}
+              </Text>
+            )}
+          </Card.Content>
+        </Card>
+      </View>
+    );
+  }
+}
 
 Second.navigationOptions = {
   title: "Single Todo"
